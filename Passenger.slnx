@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Passenger.Acp/Passenger.Acp.csproj" />
+    <Project Path="src/Passenger.AgentMode/Passenger.AgentMode.csproj" />
     <Project Path="src/Passenger.Analyzers/Passenger.Analyzers.csproj" />
     <Project Path="src/Passenger.App/Passenger.App.csproj" />
     <Project Path="src/Passenger.ContainerTools/Passenger.ContainerTools.csproj" />

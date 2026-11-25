@@ -517,6 +517,13 @@
       "passenger.acp": {
         "type": "Project"
       },
+      "passenger.agentmode": {
+        "type": "Project",
+        "dependencies": {
+          "Passenger.Core": "[0.4.5, )",
+          "Passenger.Text": "[0.4.5, )"
+        }
+      },
       "passenger.analyzers": {
         "type": "Project"
       },

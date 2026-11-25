@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Agent mode's work, with no UI: the folder's issues and milestones as Markdown files, and later the worktrees,
+       agents, tests and landing they go through. No Avalonia, so the screens only show what it reports. -->
+  <PropertyGroup>
+    <RootNamespace>Passenger.AgentMode</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Passenger.Core/Passenger.Core.csproj" />
+    <ProjectReference Include="../Passenger.Text/Passenger.Text.csproj" />
+  </ItemGroup>
+</Project>
