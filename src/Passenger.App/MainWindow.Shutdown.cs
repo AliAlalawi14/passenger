@@ -117,6 +117,7 @@ public partial class MainWindow
         ProjectName.Text = "No solution";
         ProjectBadge.IsVisible = false;
         SayOnWelcome(null);
+        LeaveAgentMode();
         Editors.ShowWelcome(Welcome);
         ShowRecent();
         UpdateStatus();

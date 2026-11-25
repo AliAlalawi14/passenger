@@ -76,6 +76,10 @@ public static class Refusals
     /// <summary>The window has no folder open (a solution, a project or a folder of files).</summary>
     public const string NoFolder = "No folder is open";
 
+    /// <summary>An attached agent's switch between Agent mode and the IDE, which would change what the person is looking
+    /// at.</summary>
+    public const string ModeIsThePersons = "Only the person switches between Agent mode and the IDE: ask them to";
+
     /// <summary>A completion list's filter by the kind of member asked for where none is offered.</summary>
     public const string NoMembersListed = "No completion list of a type's members of that kind is open";
 

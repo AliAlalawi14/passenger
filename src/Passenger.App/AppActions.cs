@@ -259,6 +259,9 @@ public static class AppActions
     // The Explorer switched between the solution's projects and the folder's files on disk: no key of Rider's.
     public const string SwitchExplorerView = "app.explorer.switchView";
 
+    // Agent mode's page over the window, or the IDE as it was beneath it: no key of Rider's, which has no such mode.
+    public const string AgentMode = "app.agentMode";
+
     // The Explorer's own actions, on the row its menu opened on or the one chosen while it has the keys: NewFile, NewDir,
     // Class/Interface, the solution's own, Add Reference, Docker Support and Compose, Aspire Orchestration, NuGet, Manage
     // User Secrets (no keys of Rider's), Edit Project File, Unload and Reload Project, Compare Files (CompareTwoFiles, by

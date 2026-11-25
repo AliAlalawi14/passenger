@@ -1279,6 +1279,21 @@
         <Setter Property="Background" Value="{DynamicResource Passenger.Selected}" />
         <Setter Property="Foreground" Value="{DynamicResource Passenger.Text}" />
     </Style>
+    <!-- A segment on the title bar (Agent mode's switch): its words, ground and mark in the title bar's own colours. -->
+    <Style Selector="Border.titleBar ToggleButton.segment">
+        <Setter Property="Foreground" Value="{DynamicResource Passenger.TitleBar.Text}" />
+    </Style>
+    <Style Selector="Border.titleBar ToggleButton.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Passenger.TitleBar.Hover}" />
+        <Setter Property="Foreground" Value="{DynamicResource Passenger.TitleBar.Text}" />
+    </Style>
+    <Style Selector="Border.titleBar ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Passenger.TitleBar.Pressed}" />
+        <Setter Property="Foreground" Value="{DynamicResource Passenger.TitleBar.Text}" />
+    </Style>
+    <Style Selector="Border.titleBar ToggleButton.segment /template/ app|ChosenMark">
+        <Setter Property="Fill" Value="{DynamicResource Passenger.TitleBar.Text}" />
+    </Style>
 
     <!-- The one emphasised action on a page: only its colours differ, so it is the size and shape of the buttons beside
          it, deepening under the pointer and further while pressed as they do. -->

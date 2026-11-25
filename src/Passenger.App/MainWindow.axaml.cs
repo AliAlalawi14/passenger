@@ -100,6 +100,7 @@ public partial class MainWindow : IdeWindow
         AddTerminal();
         AddSettings();
         AddActiveEditor();
+        AddAgentMode();
         AddFolding();
         AddCompilationSymbols();
         AddPackages();

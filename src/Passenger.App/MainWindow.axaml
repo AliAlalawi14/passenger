@@ -119,6 +119,8 @@
                             <TextBlock Name="BranchName" Text="Version control" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         </DockPanel>
                     </Button>
+                    <!-- Agent mode's page over the window, on while it shows; off again for the IDE (MainWindow.AgentMode.cs). -->
+                    <ToggleButton Name="AgentModeButton" />
                 </app:ShrinkingRow>
             </app:ToolbarRow>
             <app:ThemeBackdrop Place="Frame" />
