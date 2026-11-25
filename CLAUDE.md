@@ -5,6 +5,13 @@ show. For how something works, read the code; Passenger's own MCP tools (below) 
 loads this file, so keep it short: a change adds a rule, a trap or a pointer where one is missing, in a line, never a
 description of what the code does.
 
+## Agent mode work (this branch)
+Before writing any code, read CLAUDE.md, CONTRIBUTING.md and .editorconfig in full.
+Follow the closest existing pattern in Passenger. New code stays in
+src/Passenger.AgentMode/, src/Passenger.App/AgentMode/ and their tests.
+Run `just build` and the tests before every commit. Never commit to main.
+Commits are made as AliAlalawi14 (this repository's git config); never change git user settings.
+
 ## What this is
 
 **Passenger** is an IDE for C# and modern .NET (CoreCLR only: no .NET Framework, Mono or Unity; the one exception,
