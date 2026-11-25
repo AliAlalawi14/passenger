@@ -73,7 +73,8 @@ public static class MilestoneFile
         StringBuilder list = new();
         for (int i = 0; i < issues.Count; i++)
         {
-            list.Append(CultureInfo.InvariantCulture, $"{i + 1}. #{issues[i].Id} {issues[i].Title.ReplaceLineEndings(" ").Trim()}").Append(lineBreak);
+            string title = issues[i].Title.ReplaceLineEndings(" ").Trim();
+            list.Append(CultureInfo.InvariantCulture, $"{i + 1}. #{issues[i].Id}{(title.Length > 0 ? " " + title : "")}").Append(lineBreak);
         }
         return Read(Sections.With(milestone.Text, milestone.Keys.BodyStart, Issues, list.ToString(), lineBreak)).Sure;
     }

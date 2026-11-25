@@ -104,6 +104,7 @@
     <ProjectReference Include="../Passenger.Text/Passenger.Text.csproj" />
     <ProjectReference Include="../Passenger.Terminal/Passenger.Terminal.csproj" />
     <ProjectReference Include="../Passenger.Vcs/Passenger.Vcs.csproj" />
+    <ProjectReference Include="../Passenger.AgentMode/Passenger.AgentMode.csproj" />
     <ProjectReference Include="../Passenger.Workspace/Passenger.Workspace.csproj" />
     <ProjectReference Include="../Passenger.Xaml/Passenger.Xaml.csproj" />
     <ProjectReference Include="../Passenger.Profiler/Passenger.Profiler.csproj" />

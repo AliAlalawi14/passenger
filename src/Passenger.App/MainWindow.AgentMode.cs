@@ -15,6 +15,9 @@ public partial class MainWindow
     /// <summary>Agent mode's page while it shows; null in Human mode.</summary>
     public AgentModePage? AgentModePage => agentPage;
 
+    /// <summary>The folder's agent mode files, read again each time Agent mode opens; null until it first opens.</summary>
+    public AgentModeFiles? AgentModeFiles { get; private set; }
+
     private void AddAgentMode()
     {
         actions!.Add(new IdeAction(A.AgentMode, "Agent Mode", "IDE", _ => SwitchMode())
@@ -58,6 +61,8 @@ public partial class MainWindow
         agentPage = page;
         AgentModeButton.IsChecked = true;
         page.Focus();
+        AgentModeFiles = new AgentModeFiles(Folder!, (title, paths, write) => ChangeFileAsync(title, paths, write));
+        IdeErrors.Observe(AgentModeFiles.ReadAsync());
     }
 
     /// <summary>Human mode again: the page gone, what it covered shown as it was, the editor given the keys it had.</summary>

@@ -534,6 +534,7 @@
           "NLayer": "[3.0.1, )",
           "NVorbis": "[0.10.5, )",
           "NuGet.Configuration": "[8.0.0, )",
+          "Passenger.AgentMode": "[0.4.5, )",
           "Passenger.Core": "[0.4.5, )",
           "Passenger.Dap": "[0.4.5, )",
           "Passenger.Editor": "[0.4.5, )",
@@ -550,6 +551,13 @@
           "SkiaSharp.NativeAssets.Linux": "[4.157.0, )",
           "Svg.Skia": "[5.2.3, )",
           "Velopack": "[1.2.161, )"
+        }
+      },
+      "passenger.agentmode": {
+        "type": "Project",
+        "dependencies": {
+          "Passenger.Core": "[0.4.5, )",
+          "Passenger.Text": "[0.4.5, )"
         }
       },
       "passenger.core": {
