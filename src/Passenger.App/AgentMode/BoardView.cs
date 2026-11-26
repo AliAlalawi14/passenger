@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Passenger.AgentMode.Issues;
+using Passenger.App.ToolWindows;
 using Passenger.Core;
 
 namespace Passenger.App.AgentMode;
@@ -50,7 +51,14 @@ public sealed class BoardView : DockPanel
             across.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             ListBox list = new() { Classes = { StyleClasses.Tree } };
             ReusedRows.Use(list, IssueCard.Row);
-            ListKeys.Act(list, new ListActs { Open = () => Open(list), Keys = e => Across(list, e) });
+            ListKeys.Act(list, new ListActs
+            {
+                Open = () => Open(list),
+                Edit = () => Act(list, card => RenameRequested?.Invoke(this, card)),
+                Remove = () => Act(list, card => DropRequested?.Invoke(this, card)),
+                Keys = e => Across(list, e) || Moved(list, e),
+            });
+            ListMenus.Attach(list, () => list.SelectedItem is BoardCard card ? MenuOf(list, card) : []);
             list.SelectionChanged += (_, _) => OnlyChosen(list);
             TextBlock title = ListRow.Heading();
             DockPanel.SetDock(title, Dock.Top);
@@ -59,7 +67,7 @@ public sealed class BoardView : DockPanel
             across.Children.Add(stack);
             columns[column] = (title, list);
         }
-        StackPanel head = new() { Orientation = Orientation.Horizontal, Spacing = Gaps.Wide, Margin = new Thickness(Gaps.Normal), Children = { milestones, summary } };
+        StackPanel head = new() { Orientation = Orientation.Horizontal, Spacing = Gaps.Wide, Margin = new Thickness(Gaps.Normal), Children = { milestones, summary, NewIssueButton, NewMilestoneButton } };
         DockPanel.SetDock(unread, Dock.Top);
         DockPanel.SetDock(head, Dock.Top);
         Children.Add(unread);
@@ -75,6 +83,30 @@ public sealed class BoardView : DockPanel
         Children.Add(sideways);
     }
 
+    /// <summary>New Issue…, over the board, which the window binds to its action.</summary>
+    public Button NewIssueButton { get; } = new() { Name = "NewIssue", VerticalAlignment = VerticalAlignment.Center };
+
+    /// <summary>New Milestone…, over the board, which the window binds to its action.</summary>
+    public Button NewMilestoneButton { get; } = new() { Name = "NewMilestone", VerticalAlignment = VerticalAlignment.Center };
+
+    /// <summary>What the window's keymap runs for a key (its Move Line Up and Down move a card), null for none.</summary>
+    public Func<KeyEventArgs, string?> KeyAction { get; set; } = _ => null;
+
+    /// <summary>The card chosen on the board, null for none.</summary>
+    public BoardCard? Chosen => columns.Values.Select(c => c.List.SelectedItem).OfType<BoardCard>().FirstOrDefault();
+
+    /// <summary>A card's title to change (F2, its menu's Rename…).</summary>
+    public event EventHandler<BoardCard>? RenameRequested;
+
+    /// <summary>A card to drop (Delete, its menu's Drop): its state dropped, its file kept.</summary>
+    public event EventHandler<BoardCard>? DropRequested;
+
+    /// <summary>A card to move to another column (its menu's Move to).</summary>
+    public event EventHandler<(BoardCard Card, BoardColumn To)>? MoveToRequested;
+
+    /// <summary>A card to move a place up (-1) or down (1) in its column, so in its milestone's list.</summary>
+    public event EventHandler<(BoardCard Card, int Step)>? MoveRequested;
+
     /// <summary>A card's file asked for, or a file that could not be read, with the line to show (from 0).</summary>
     public event EventHandler<(string Path, int Line)>? OpenRequested;
 
@@ -82,7 +114,7 @@ public sealed class BoardView : DockPanel
     public string? Milestone => milestones.SelectedIndex is var at and >= 0 && at < choices.Count ? choices[at] : null;
 
     /// <summary>The cards a column shows, in order.</summary>
-    public IReadOnlyList<BoardCard> CardsIn(BoardColumn column) => columns[column].List.ItemsSource as IReadOnlyList<BoardCard> ?? [];
+    public IReadOnlyList<BoardCard> CardsIn(BoardColumn column) => CardsInList(columns[column].List);
 
     /// <summary>The list of a column, which the arrows and Enter act in.</summary>
     public ListBox ListOf(BoardColumn column) => columns[column].List;
@@ -117,6 +149,8 @@ public sealed class BoardView : DockPanel
         {
             return;
         }
+        int? had = Chosen?.Id;
+        bool keys = IsKeyboardFocusWithin;
         IReadOnlyDictionary<BoardColumn, IReadOnlyList<BoardCard>> cards = BoardColumns.Cards(board, Milestone);
         foreach ((BoardColumn column, string name) in BoardColumns.All)
         {
@@ -125,6 +159,85 @@ public sealed class BoardView : DockPanel
             title.Text = $"{name} · {cards[column].Count}";
         }
         summary.Text = Plural.Of(cards.Values.Sum(c => c.Count), "issue");
+        if (had is int id)
+        {
+            Choose(id, keys);
+        }
+    }
+
+    /// <summary>Shows a milestone, where the board has it.</summary>
+    public void ShowMilestone(string? title)
+    {
+        if (choices.ToList().IndexOf(title) is var at and >= 0)
+        {
+            milestones.SelectedIndex = at;
+        }
+    }
+
+    /// <summary>Chooses an issue's card wherever it stands now, giving it the keys where <paramref name="keys"/>; false
+    /// where the board shows no card of it.</summary>
+    public bool Choose(int id, bool keys = true)
+    {
+        foreach ((TextBlock _, ListBox list) in columns.Values)
+        {
+            if (CardsInList(list).ToList().FindIndex(c => c.Id == id) is var at and >= 0)
+            {
+                list.SelectedIndex = at;
+                if (keys)
+                {
+                    // A card's column may have been empty until now, with no row laid out to take the keys.
+                    UpdateLayout();
+                    ListKeys.Hold(list);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static IReadOnlyList<BoardCard> CardsInList(ListBox list) => list.ItemsSource as IReadOnlyList<BoardCard> ?? [];
+
+    private static void Act(ListBox list, Action<BoardCard> act)
+    {
+        if (list.SelectedItem is BoardCard card)
+        {
+            act(card);
+        }
+    }
+
+    /// <summary>A card's menu: open it, rename it, move it to another column or a place up or down, drop it.</summary>
+    private IReadOnlyList<Control> MenuOf(ListBox list, BoardCard card)
+    {
+        IReadOnlyList<BoardCard> column = CardsInList(list);
+        int at = column.ToList().FindIndex(c => c.Id == card.Id);
+        string? unordered = Milestone is null ? "Issues of no milestone keep no order" : null;
+        return
+        [
+            ListMenus.Open("Open", () => Open(list)),
+            ListMenus.Edit("Rename…", () => RenameRequested?.Invoke(this, card)),
+            ListMenus.Sub("Move to", BoardColumns.All.Where(c => c.Column != card.Column)
+                .Select(c => ListMenus.Item(c.Title, () => MoveToRequested?.Invoke(this, (card, c.Column))))),
+            ListMenus.Item("Move Up", () => MoveRequested?.Invoke(this, (card, -1)), unordered ?? (at <= 0 ? "It is the column's first card" : null)),
+            ListMenus.Item("Move Down", () => MoveRequested?.Invoke(this, (card, 1)), unordered ?? (at >= column.Count - 1 ? "It is the column's last card" : null)),
+            ListMenus.Remove("Drop", () => DropRequested?.Invoke(this, card)),
+        ];
+    }
+
+    /// <summary>The keymap's Move Line Up and Down move the chosen card a place in its column.</summary>
+    private bool Moved(ListBox list, KeyEventArgs e)
+    {
+        int step = KeyAction(e) switch
+        {
+            Passenger.Editor.EditorActions.MoveLineUp => -1,
+            Passenger.Editor.EditorActions.MoveLineDown => 1,
+            _ => 0,
+        };
+        if (step == 0 || list.SelectedItem is not BoardCard card)
+        {
+            return false;
+        }
+        MoveRequested?.Invoke(this, (card, step));
+        return true;
     }
 
     private void Open(ListBox list)

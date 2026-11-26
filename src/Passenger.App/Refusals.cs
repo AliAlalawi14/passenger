@@ -80,6 +80,12 @@ public static class Refusals
     /// at.</summary>
     public const string ModeIsThePersons = "Only the person switches between Agent mode and the IDE: ask them to";
 
+    /// <summary>A change of the board's issues asked while Agent mode is not open, as the board is where it is made.</summary>
+    public const string AgentModeClosed = "Agent mode is not open: its board is where issues are made";
+
+    /// <summary>An attached agent's change of the person's issues from the window, which only the person makes there.</summary>
+    public const string IssuesAreThePersons = "Only the person makes issues and milestones from the board: ask them to";
+
     /// <summary>A completion list's filter by the kind of member asked for where none is offered.</summary>
     public const string NoMembersListed = "No completion list of a type's members of that kind is open";
 

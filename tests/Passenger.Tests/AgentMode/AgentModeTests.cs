@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Passenger.AgentMode.Issues;
@@ -29,6 +30,7 @@ public sealed class AgentModeTests : IDisposable
         Flow.StepApart<AgentModeTests>("agent mode covers the IDE and the switch back finds the file and caret as they were", t => t.Agent_mode_covers_the_IDE_and_the_switch_back_finds_the_file_and_caret_as_they_were());
         Flow.StepApart<AgentModeTests>("a new issue lands in the folders line breaks with its milestone and one undo takes both back", t => t.A_new_issue_lands_in_the_folders_line_breaks_with_its_milestone_and_one_undo_takes_both_back());
         Flow.StepApart<AgentModeTests>("the board shows a milestones cards by state in its lists order follows a file changed on disk and opens a card by Enter", t => t.The_board_shows_a_milestones_cards_by_state_in_its_lists_order_follows_a_file_changed_on_disk_and_opens_a_card_by_Enter());
+        Flow.StepApart<AgentModeTests>("issues are made renamed reordered and dropped from the board and undo takes a drop back", t => t.Issues_are_made_renamed_reordered_and_dropped_from_the_board_and_undo_takes_a_drop_back());
     }
 
     private void Agent_mode_covers_the_IDE_and_the_switch_back_finds_the_file_and_caret_as_they_were()
@@ -83,12 +85,7 @@ public sealed class AgentModeTests : IDisposable
         Assert.Equal<int>([1], files.Board.Issues.Select(i => i.Value.Id));
 
         // Undo moves what the command made to the Trash, which it asks the person first: agreed to here, as a person would.
-        List<string> asked = [];
-        window.Confirm = (title, _, _) =>
-        {
-            asked.Add(title);
-            return Task.FromResult(true);
-        };
+        List<string> asked = Agreed(window);
         Ui.Click(agent);
         Ui.Run(window, AppActions.FocusExplorer);
         Ui.Run(window, EditorActions.Undo);
@@ -135,5 +132,69 @@ public sealed class AgentModeTests : IDisposable
         Ui.Press(window, "ENTER");
         Assert.True(window.AgentModePage is null && window.EditorArea.Active?.Path == Path.Combine(issues, "16-b.md"), "Enter on a card did not open its issue's file in the editor");
         window.Close();
+    }
+
+    private void Issues_are_made_renamed_reordered_and_dropped_from_the_board_and_undo_takes_a_drop_back()
+    {
+        string root = PathNames.Canonical(folder);
+        string issues = IssueFolder.IssuesOf(root);
+        Directory.CreateDirectory(issues);
+        Directory.CreateDirectory(IssueFolder.MilestonesOf(root));
+        File.WriteAllText(Path.Combine(issues, "15-a.md"), "---\nid: 15\ntitle: Fix rounding\nstate: backlog\nmilestone: 0.5\n---\n");
+        File.WriteAllText(Path.Combine(issues, "16-b.md"), "---\nid: 16\ntitle: Show tax\nstate: backlog\nmilestone: 0.5\n---\n");
+        File.WriteAllText(Path.Combine(IssueFolder.MilestonesOf(root), "0.5.md"), "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 Fix rounding\n2. #16 Show tax\n");
+        MainWindow window = Ui.OpenFolder(folder, languageServer: false);
+        Ui.Click(window.FindControl<ToggleButton>("AgentModeButton")!);
+        BoardView board = window.AgentModePage!.Board;
+        Ui.WaitFor(() => board.CardsIn(BoardColumn.Backlog).Count == 2, "the board to show the two issues");
+        int[] Backlog() => [.. board.CardsIn(BoardColumn.Backlog).Select(c => c.Id)];
+
+        Ui.Click(board.NewIssueButton);
+        Name(window, "Round once");
+        Ui.WaitFor(() => Backlog().SequenceEqual([15, 16, 17]) && board.Chosen?.Id == 17, "the new issue's card to end the backlog, chosen");
+        Assert.True(File.Exists(Path.Combine(issues, "17-round-once.md")), "New Issue… wrote no issue file named by its id and title");
+
+        Ui.Press(window, AppActions.Keymap().ShortcutsFor(EditorActions.MoveLineUp).First(s => s.Second is null).Notation());
+        Ui.WaitFor(() => Backlog().SequenceEqual([15, 17, 16]) && board.Chosen?.Id == 17, "Move Line Up's keys to move the chosen card a place up, still chosen");
+        Assert.Contains("1. #15 Fix rounding\n2. #17 Round once\n3. #16 Show tax\n", File.ReadAllText(Path.Combine(IssueFolder.MilestonesOf(root), "0.5.md")), StringComparison.Ordinal);
+
+        Ui.Press(window, "F2");
+        Name(window, "Round in one place");
+        Ui.WaitFor(() => board.CardsIn(BoardColumn.Backlog) is [_, { Id: 17, Title: "Round in one place" }, _], "F2 to rename the chosen card");
+
+        Ui.Press(window, ListKeys.RemoveKey.ToString().ToUpperInvariant());
+        Ui.WaitFor(() => Backlog().SequenceEqual([15, 16]), "the dropped card to leave the board");
+        string dropped = Path.Combine(issues, "17-round-once.md");
+        Assert.Contains("state: dropped", File.ReadAllText(dropped), StringComparison.Ordinal);
+
+        // Undo of a change to files not open asks the person first, saying which: agreed to here, as a person would.
+        List<string> asked = Agreed(window);
+        Ui.Click(window.FindControl<ToggleButton>("AgentModeButton")!);
+        Ui.Run(window, AppActions.FocusExplorer);
+        Ui.Run(window, EditorActions.Undo);
+        Ui.WaitFor(() => File.ReadAllText(dropped).Contains("state: backlog", StringComparison.Ordinal), "one Undo to take the drop back, the issue in the backlog again");
+        Assert.Equal<string>(["Undo"], asked);
+        window.Close();
+    }
+
+    /// <summary>Agrees to every question the window asks from now on, as a person would, keeping their titles in order.</summary>
+    private static List<string> Agreed(MainWindow window)
+    {
+        List<string> asked = [];
+        window.Confirm = (title, _, _) =>
+        {
+            asked.Add(title);
+            return Task.FromResult(true);
+        };
+        return asked;
+    }
+
+    /// <summary>Types a name into the name popup open and presses Enter, as a person does.</summary>
+    private static void Name(MainWindow window, string name)
+    {
+        Ui.WaitFor(() => window.Popup is Passenger.App.Vcs.NamePopup, $"the name popup for {name}");
+        window.KeyTextInput(name);
+        Ui.Press(window, "ENTER");
+        Assert.False(window.IsPopupOpen, $"The name {name} was refused: {(window.Popup as Passenger.App.Vcs.NamePopup)?.Problem}");
     }
 }

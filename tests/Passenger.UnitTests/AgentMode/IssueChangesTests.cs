@@ -63,6 +63,26 @@ public class IssueChangesTests
             Assert.Equal<int>([16], MilestoneFile.Read(change.Writes[1].Text).Sure.Order);
             Assert.Equal<int>([15], MilestoneFile.Read(change.Writes[2].Text).Sure.Order);
         }),
+        ("a new milestone is a new file with no issue", () =>
+        {
+            IssueChange change = IssueChanges.NewMilestone(Board(), "0.6");
+            Assert.Equal((Path.Combine(IssueFolder.MilestonesOf(Folder), "0.6.md"), true), (change.Writes.Single().Path, change.Writes.Single().New));
+            Assert.Equal(("0.6", 0), (MilestoneFile.Read(change.Writes.Single().Text).Sure.Title, MilestoneFile.Read(change.Writes.Single().Text).Sure.Order.Count));
+        }),
+        ("a move in a column swaps a card with the one beside it there, and none past the column's end", () =>
+        {
+            IssueBoard board = IssueBoard.Of(Folder,
+                [
+                    (Fifteen, "---\nid: 15\ntitle: A\nstate: backlog\nmilestone: 0.5\n---\n"),
+                    (Sixteen, "---\nid: 16\ntitle: B\nstate: building\nmilestone: 0.5\n---\n"),
+                    (Broken, "---\nid: 21\ntitle: C\nstate: backlog\nmilestone: 0.5\n---\n"),
+                ],
+                [(Five, "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 A\n2. #16 B\n")]);
+            // 16 stands between 15 and 21 in the list, but in another column, so 21 (listed after, by number) swaps with 15.
+            Assert.Equal<int>([21, 16, 15], MilestoneFile.Read(IssueChanges.MovedInColumn(board, 21, -1)!.Writes.Single().Text).Sure.Order);
+            Assert.Null(IssueChanges.MovedInColumn(board, 15, -1));
+            Assert.Null(IssueChanges.MovedInColumn(board, 16, 1));
+        }),
         ("a new order writes the milestone's list alone, its goal kept", () =>
         {
             IssueChange change = IssueChanges.NewOrder(Board(), "0.5", [16, 15]);

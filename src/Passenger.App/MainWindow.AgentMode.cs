@@ -3,6 +3,7 @@ using Passenger.AgentMode.Issues;
 using Passenger.App.AgentMode;
 using Passenger.App.Workspace;
 using Passenger.Core;
+using Passenger.Editor;
 using Passenger.Text;
 using A = Passenger.App.AppActions;
 
@@ -22,6 +23,8 @@ public partial class MainWindow
     /// <summary>The folder's agent mode files, read again each time Agent mode opens; null until it first opens.</summary>
     public AgentModeFiles? AgentModeFiles { get; private set; }
 
+    private BoardActions? boardActions;
+
     private void AddAgentMode()
     {
         actions!.Add(new IdeAction(A.AgentMode, "Agent Mode", "IDE", _ => SwitchMode())
@@ -34,6 +37,18 @@ public partial class MainWindow
         ActionButtons.Bind(AgentModeButton, A.AgentMode, actions, id => Request(id));
         // The toggle turns itself as it is clicked; it shows the mode in force, a refused switch included.
         AgentModeButton.Click += (_, _) => AgentModeButton.IsChecked = agentPage is not null;
+        string? BoardWhyNot(ActionContext c) => AskedByAgent(c) ? Refusals.IssuesAreThePersons : agentPage is null ? Refusals.AgentModeClosed : null;
+        actions.Add(new IdeAction(A.NewIssue, "New Issue…", "Agent Mode", _ => OnBoard(b => b.NewIssueAsync())) { WhyNot = BoardWhyNot });
+        actions.Add(new IdeAction(A.NewMilestone, "New Milestone…", "Agent Mode", _ => OnBoard(b => b.NewMilestoneAsync())) { WhyNot = BoardWhyNot });
+    }
+
+    /// <summary>A change the person makes from the board, refused to an agent's input into the window.</summary>
+    private void OnBoard(Func<BoardActions, Task> act)
+    {
+        if (!RefusedToAgentsInput(Refusals.IssuesAreThePersons) && boardActions is { } board)
+        {
+            IdeErrors.Observe(act(board));
+        }
     }
 
     private void SwitchMode()
@@ -72,6 +87,17 @@ public partial class MainWindow
         };
         AgentModeFiles = new AgentModeFiles(Folder!, (title, paths, write) => ChangeFileAsync(title, paths, write));
         AgentModeFiles.BoardRead += (_, board) => agentPage?.Show(board);
+        boardActions = new BoardActions(AgentModeFiles, page.Board, (title, initial, refused) => AskNameAsync(title, initial, refused), why => Refuse(why));
+        page.Board.KeyAction = e => keys.Keymap.ActionFor(new Shortcut(Keystroke.From(e)));
+        page.Board.RenameRequested += (_, card) => OnBoard(b => b.RenameAsync(card));
+        page.Board.DropRequested += (_, card) => OnBoard(b => b.DropAsync(card));
+        page.Board.MoveToRequested += (_, asked) => OnBoard(b => b.MoveToAsync(asked.Card, asked.To));
+        page.Board.MoveRequested += (_, asked) => OnBoard(b => b.MoveAsync(asked.Card, asked.Step));
+        foreach ((Button button, string id) in (ReadOnlySpan<(Button, string)>)[(page.Board.NewIssueButton, A.NewIssue), (page.Board.NewMilestoneButton, A.NewMilestone)])
+        {
+            button.Content = actions![id]!.Title;
+            ActionButtons.Bind(button, id, actions, action => Request(action));
+        }
         IdeErrors.Observe(AgentModeFiles.ReadAsync());
     }
 

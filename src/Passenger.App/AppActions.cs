@@ -262,6 +262,10 @@ public static class AppActions
     // Agent mode's page over the window, or the IDE as it was beneath it: no key of Rider's, which has no such mode.
     public const string AgentMode = "app.agentMode";
 
+    // A new issue, or milestone, on Agent mode's board: no key of Rider's.
+    public const string NewIssue = "app.agentMode.newIssue";
+    public const string NewMilestone = "app.agentMode.newMilestone";
+
     // The Explorer's own actions, on the row its menu opened on or the one chosen while it has the keys: NewFile, NewDir,
     // Class/Interface, the solution's own, Add Reference, Docker Support and Compose, Aspire Orchestration, NuGet, Manage
     // User Secrets (no keys of Rider's), Edit Project File, Unload and Reload Project, Compare Files (CompareTwoFiles, by

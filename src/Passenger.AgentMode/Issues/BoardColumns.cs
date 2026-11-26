@@ -39,6 +39,16 @@ public static class BoardColumns
         _ => null,
     };
 
+    /// <summary>The state an issue moved to a column takes: the column's own, a review waiting for the person.</summary>
+    public static IssueState StateOf(BoardColumn column) => column switch
+    {
+        BoardColumn.Backlog => IssueState.Backlog,
+        BoardColumn.Planning => IssueState.Planning,
+        BoardColumn.Building => IssueState.Building,
+        BoardColumn.Review => IssueState.ReviewWaiting,
+        _ => IssueState.Landed,
+    };
+
     /// <summary>The words a card shows beside its title for a state its column alone does not say; null for one it does.</summary>
     public static string? TagOf(IssueState state) => state switch
     {
