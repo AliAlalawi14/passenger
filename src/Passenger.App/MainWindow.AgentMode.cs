@@ -93,6 +93,7 @@ public partial class MainWindow
         page.Board.DropRequested += (_, card) => OnBoard(b => b.DropAsync(card));
         page.Board.MoveToRequested += (_, asked) => OnBoard(b => b.MoveToAsync(asked.Card, asked.To));
         page.Board.MoveRequested += (_, asked) => OnBoard(b => b.MoveAsync(asked.Card, asked.Step));
+        page.Board.PlaceRequested += (_, asked) => OnBoard(b => b.PlaceAsync(asked.Card, asked.To, asked.Index));
         foreach ((Button button, string id) in (ReadOnlySpan<(Button, string)>)[(page.Board.NewIssueButton, A.NewIssue), (page.Board.NewMilestoneButton, A.NewMilestone)])
         {
             button.Content = actions![id]!.Title;

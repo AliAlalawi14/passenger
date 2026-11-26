@@ -64,6 +64,16 @@ public sealed class BoardActions(AgentModeFiles files, BoardView board, Func<str
         await Changed(b => IssueChanges.MovedInColumn(b, card.Id, step) ?? new IssueChange("Move", []), card.Id);
     }
 
+    /// <summary>A card dragged to a column and a place among its other cards: one change of its state and its milestone's
+    /// list; nothing where it lands where it was.</summary>
+    public async Task PlaceAsync(BoardCard card, BoardColumn to, int index)
+    {
+        if (IssueChanges.Placed(files.Board, card.Id, to, index) is not null)
+        {
+            await Changed(b => IssueChanges.Placed(b, card.Id, to, index) ?? new IssueChange("Move", []), card.Id);
+        }
+    }
+
     /// <summary>Drop: the card's issue dropped, out of the board, its file kept for Undo or the person to bring back.</summary>
     public Task DropAsync(BoardCard card) => Changed(b => IssueChanges.NewState(b, card.Id, IssueState.Dropped));
 

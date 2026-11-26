@@ -78,19 +78,42 @@ public static class IssueChanges
         {
             return null;
         }
-        IReadOnlyList<BoardCard> column = BoardColumns.Cards(board, milestone).Values.First(c => c.Any(card => card.Id == id));
-        int at = column.ToList().FindIndex(c => c.Id == id);
-        if (at + step < 0 || at + step >= column.Count)
+        (BoardColumn column, IReadOnlyList<BoardCard> cards) = BoardColumns.Cards(board, milestone).First(c => c.Value.Any(card => card.Id == id));
+        int at = cards.ToList().FindIndex(c => c.Id == id);
+        return at + step < 0 || at + step >= cards.Count ? null : Placed(board, id, column, at + step);
+    }
+
+    /// <summary>The issue's card placed in <paramref name="column"/> before the card at <paramref name="index"/> among that
+    /// column's others (after them all past their end): the issue taking the column's own state where it is another
+    /// column's, and its place in its milestone's list, those the list leaves out taken in after it by number. Null where
+    /// that changes nothing, a drop where it was, or a drop in its own column of an issue of no milestone.</summary>
+    public static IssueChange? Placed(IssueBoard board, int id, BoardColumn column, int index)
+    {
+        Placed<Issue> issue = Sure(board, id);
+        bool across = BoardColumns.Of(issue.Value.State) != column;
+        if (!across && BoardColumns.Cards(board, issue.Value.Milestone)[column].ToList().FindIndex(c => c.Id == id) is var stands
+            && Math.Clamp(index, 0, BoardColumns.Cards(board, issue.Value.Milestone)[column].Count - 1) == stands)
         {
             return null;
         }
-        int beside = column[at + step].Id;
-        List<int> order = [.. Order(board, milestone)];
-        order.AddRange(board.Issues.Where(i => i.Value.Milestone == milestone && !order.Contains(i.Value.Id)).Select(i => i.Value.Id).Order());
-        int mine = order.IndexOf(id);
-        int theirs = order.IndexOf(beside);
-        (order[mine], order[theirs]) = (order[theirs], order[mine]);
-        return new IssueChange(step < 0 ? $"Move #{id} Up" : $"Move #{id} Down", [Listed(board, milestone, order, null)]);
+        Issue moved = across ? IssueFile.WithState(issue.Value, BoardColumns.StateOf(column)) : issue.Value;
+        List<FileWrite> writes = across ? [Rewritten(issue, moved)] : [];
+        if (issue.Value.Milestone is { } milestone)
+        {
+            List<int> was = [.. Order(board, milestone)];
+            was.AddRange(board.Issues.Where(i => i.Value.Milestone == milestone && !was.Contains(i.Value.Id)).Select(i => i.Value.Id).Order());
+            List<int> others = [.. BoardColumns.Cards(board, milestone)[column].Select(c => c.Id).Where(i => i != id)];
+            List<int> order = [.. was.Where(i => i != id)];
+            int at = Math.Clamp(index, 0, others.Count) is var place && place < others.Count ? order.IndexOf(others[place])
+                : others.Count > 0 ? order.IndexOf(others[^1]) + 1 : order.Count;
+            order.Insert(at, id);
+            if (!order.SequenceEqual(was))
+            {
+                writes.Add(Listed(board, milestone, order, null));
+            }
+        }
+        return writes.Count == 0 ? null
+            : new IssueChange(across ? $"Move #{id} to {IssueStates.WordOf(BoardColumns.StateOf(column))}" : $"Move #{id}", writes);
     }
 
     private static Placed<Issue> Sure(IssueBoard board, int id) =>

@@ -2,8 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 using Passenger.AgentMode.Issues;
+using Passenger.App.Docking;
 using Passenger.App.ToolWindows;
 using Passenger.Core;
 
@@ -11,8 +14,9 @@ namespace Passenger.App.AgentMode;
 
 /// <summary>The board: a milestone's issues as cards in five columns, from the backlog to landed, the milestone chosen above
 /// them, and a banner naming each file that could not be read. One card is chosen on the whole board; the arrows move along
-/// a column and across to the next, and Enter or a double click asks for the card's file. The columns keep their width and
-/// scroll sideways in a narrow window, never squeezed.</summary>
+/// a column and across to the next, and Enter or a double click asks for the card's file. A card dragged lands before the
+/// card it is let go over, in its column or another, the place lit up meanwhile; Escape gives up a drag. The columns keep
+/// their width and scroll sideways in a narrow window, never squeezed.</summary>
 public sealed class BoardView : DockPanel
 {
     /// <summary>The least width a column takes.</summary>
@@ -28,9 +32,23 @@ public sealed class BoardView : DockPanel
     private IssueBoard? board;
     private IReadOnlyList<string?> choices = [];
     private bool filling;
+    private readonly Panel surface = new();
+    private readonly DropOverlay landing = new();
+    private readonly DragGesture<BoardCard> drag;
+    private bool dragging;
 
     public BoardView()
     {
+        drag = new DragGesture<BoardCard>(surface, landing, (_, at) => PlaceAt(at) is { } place ? new DropZone(place.Line) : null, Dropped);
+        drag.DraggingChanged += (_, change) => dragging = change.Dragging;
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (dragging && e.Key == Key.Escape)
+            {
+                drag.Cancel();
+                e.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel);
         milestones.SelectionChanged += (_, _) =>
         {
             if (!filling)
@@ -60,6 +78,10 @@ public sealed class BoardView : DockPanel
             });
             ListMenus.Attach(list, () => list.SelectedItem is BoardCard card ? MenuOf(list, card) : []);
             list.SelectionChanged += (_, _) => OnlyChosen(list);
+            // A list takes a press for its own choice, so its drag hears the pointer ahead of it, handled or not.
+            list.AddHandler(PointerPressedEvent, (_, e) => Pressed(list, e), RoutingStrategies.Tunnel, handledEventsToo: true);
+            list.AddHandler(PointerMovedEvent, (_, e) => Moving(list, e), RoutingStrategies.Tunnel, handledEventsToo: true);
+            list.AddHandler(PointerReleasedEvent, (_, e) => Released(list, e), RoutingStrategies.Tunnel, handledEventsToo: true);
             TextBlock title = ListRow.Heading();
             DockPanel.SetDock(title, Dock.Top);
             DockPanel stack = new() { Margin = new Thickness(Gaps.Tight, 0), Children = { title, list } };
@@ -76,8 +98,10 @@ public sealed class BoardView : DockPanel
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = across,
+            Content = surface,
         };
+        surface.Children.Add(across);
+        surface.Children.Add(landing);
         // A scroller gives its content no bound, so the columns share the room it shows, never less than their least.
         sideways.SizeChanged += (_, e) => across.Width = Math.Max(across.MinWidth, e.NewSize.Width);
         Children.Add(sideways);
@@ -222,6 +246,87 @@ public sealed class BoardView : DockPanel
             ListMenus.Remove("Drop", () => DropRequested?.Invoke(this, card)),
         ];
     }
+
+    /// <summary>A card dragged and let go: its column, and its place there among the column's other cards.</summary>
+    public event EventHandler<(BoardCard Card, BoardColumn To, int Index)>? PlaceRequested;
+
+    private void Pressed(ListBox list, PointerPressedEventArgs e)
+    {
+        if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true) is { } row && list.ItemFromContainer(row) is BoardCard card)
+        {
+            drag.Begin(card, e);
+        }
+    }
+
+    private void Moving(ListBox list, PointerEventArgs e)
+    {
+        if (!e.GetCurrentPoint(list).Properties.IsLeftButtonPressed)
+        {
+            // Let go outside the list before it was a drag, which the list never heard.
+            drag.Cancel();
+            return;
+        }
+        // Once a drag, the pointer is the list's until the release, wherever it goes.
+        if (drag.Continue(e) && e.Pointer.Captured != list)
+        {
+            e.Pointer.Capture(list);
+        }
+    }
+
+    private void Released(ListBox list, PointerReleasedEventArgs e)
+    {
+        if (drag.End(e))
+        {
+            e.Handled = true;
+        }
+        if (e.Pointer.Captured == list)
+        {
+            e.Pointer.Capture(null);
+        }
+    }
+
+    /// <summary>A card let go over a column: its place there counted among the column's other cards, as it will stand.</summary>
+    private void Dropped(BoardCard card, Point at)
+    {
+        if (PlaceAt(at) is not { } place)
+        {
+            return;
+        }
+        int was = card.Column == place.Column ? CardsIn(place.Column).ToList().FindIndex(c => c.Id == card.Id) : -1;
+        PlaceRequested?.Invoke(this, (card, place.Column, was >= 0 && was < place.Index ? place.Index - 1 : place.Index));
+    }
+
+    /// <summary>The column under a point of the board's surface, the place a card let go there takes (before the first card
+    /// whose middle is below it, else after the last) and the line that shows it; null outside the columns.</summary>
+    private (BoardColumn Column, int Index, Rect Line)? PlaceAt(Point at)
+    {
+        foreach (KeyValuePair<BoardColumn, (TextBlock Title, ListBox List)> pair in columns)
+        {
+            ListBox list = pair.Value.List;
+            if (list.TranslatePoint(default, surface) is not { } corner || at.X < corner.X || at.X >= corner.X + list.Bounds.Width)
+            {
+                continue;
+            }
+            Rect area = new(corner, list.Bounds.Size);
+            double below = area.Top;
+            for (int i = 0; i < list.ItemCount; i++)
+            {
+                if (list.ContainerFromIndex(i) is not { } row || row.TranslatePoint(default, surface) is not { } top)
+                {
+                    continue;
+                }
+                if (at.Y < top.Y + (row.Bounds.Height / 2))
+                {
+                    return (pair.Key, i, LineAt(area, top.Y));
+                }
+                below = top.Y + row.Bounds.Height;
+            }
+            return (pair.Key, list.ItemCount, LineAt(area, below));
+        }
+        return null;
+    }
+
+    private static Rect LineAt(Rect column, double y) => new(column.Left, Math.Max(column.Top, y - 1), column.Width, 2);
 
     /// <summary>The keymap's Move Line Up and Down move the chosen card a place in its column.</summary>
     private bool Moved(ListBox list, KeyEventArgs e)

@@ -78,10 +78,28 @@ public class IssueChangesTests
                     (Broken, "---\nid: 21\ntitle: C\nstate: backlog\nmilestone: 0.5\n---\n"),
                 ],
                 [(Five, "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 A\n2. #16 B\n")]);
-            // 16 stands between 15 and 21 in the list, but in another column, so 21 (listed after, by number) swaps with 15.
-            Assert.Equal<int>([21, 16, 15], MilestoneFile.Read(IssueChanges.MovedInColumn(board, 21, -1)!.Writes.Single().Text).Sure.Order);
+            // 16 stands between 15 and 21 in the list, but in another column, so 21 (listed after, by number) goes before 15.
+            Assert.Equal<int>([21, 15, 16], MilestoneFile.Read(IssueChanges.MovedInColumn(board, 21, -1)!.Writes.Single().Text).Sure.Order);
             Assert.Null(IssueChanges.MovedInColumn(board, 15, -1));
             Assert.Null(IssueChanges.MovedInColumn(board, 16, 1));
+        }),
+        ("a card dropped in another column takes its state and its place there in one change, one dropped where it was none", () =>
+        {
+            IssueBoard board = IssueBoard.Of(Folder,
+                [
+                    (Fifteen, "---\nid: 15\ntitle: A\nstate: backlog\nmilestone: 0.5\n---\n"),
+                    (Sixteen, "---\nid: 16\ntitle: B\nstate: backlog\nmilestone: 0.5\n---\n"),
+                    (Broken, "---\nid: 21\ntitle: C\nstate: building\nmilestone: 0.5\n---\n"),
+                ],
+                [(Five, "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 A\n2. #21 C\n3. #16 B\n")]);
+            IssueChange across = IssueChanges.Placed(board, 16, BoardColumn.Building, 0)!;
+            Assert.Equal<string>([Sixteen, Five], across.Writes.Select(w => w.Path));
+            Assert.Equal(IssueState.Building, IssueFile.Read(across.Writes[0].Text).Sure.State);
+            Assert.Equal<int>([15, 16, 21], MilestoneFile.Read(across.Writes[1].Text).Sure.Order);
+            Assert.Null(IssueChanges.Placed(board, 15, BoardColumn.Backlog, 0));
+            IssueBoard none = IssueBoard.Of(Folder, [(Fifteen, "---\nid: 15\ntitle: A\nstate: backlog\nmilestone:\n---\n"), (Sixteen, "---\nid: 16\ntitle: B\nstate: backlog\nmilestone:\n---\n")], []);
+            Assert.Null(IssueChanges.Placed(none, 16, BoardColumn.Backlog, 0));
+            Assert.Equal<string>([Fifteen], IssueChanges.Placed(none, 15, BoardColumn.Landed, 0)!.Writes.Select(w => w.Path));
         }),
         ("a new order writes the milestone's list alone, its goal kept", () =>
         {

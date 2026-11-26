@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -31,6 +32,7 @@ public sealed class AgentModeTests : IDisposable
         Flow.StepApart<AgentModeTests>("a new issue lands in the folders line breaks with its milestone and one undo takes both back", t => t.A_new_issue_lands_in_the_folders_line_breaks_with_its_milestone_and_one_undo_takes_both_back());
         Flow.StepApart<AgentModeTests>("the board shows a milestones cards by state in its lists order follows a file changed on disk and opens a card by Enter", t => t.The_board_shows_a_milestones_cards_by_state_in_its_lists_order_follows_a_file_changed_on_disk_and_opens_a_card_by_Enter());
         Flow.StepApart<AgentModeTests>("issues are made renamed reordered and dropped from the board and undo takes a drop back", t => t.Issues_are_made_renamed_reordered_and_dropped_from_the_board_and_undo_takes_a_drop_back());
+        Flow.StepApart<AgentModeTests>("a card dragged to another column lands before the card it is let go over and undo takes it back", t => t.A_card_dragged_to_another_column_lands_before_the_card_it_is_let_go_over_and_undo_takes_it_back());
     }
 
     private void Agent_mode_covers_the_IDE_and_the_switch_back_finds_the_file_and_caret_as_they_were()
@@ -177,6 +179,42 @@ public sealed class AgentModeTests : IDisposable
         window.Close();
     }
 
+    private void A_card_dragged_to_another_column_lands_before_the_card_it_is_let_go_over_and_undo_takes_it_back()
+    {
+        string root = PathNames.Canonical(folder);
+        string issues = IssueFolder.IssuesOf(root);
+        string milestone = Path.Combine(IssueFolder.MilestonesOf(root), "0.5.md");
+        Directory.CreateDirectory(issues);
+        Directory.CreateDirectory(IssueFolder.MilestonesOf(root));
+        File.WriteAllText(Path.Combine(issues, "15-a.md"), "---\nid: 15\ntitle: Issue 15\nstate: backlog\nmilestone: 0.5\n---\n");
+        File.WriteAllText(Path.Combine(issues, "16-b.md"), "---\nid: 16\ntitle: Issue 16\nstate: backlog\nmilestone: 0.5\n---\n");
+        File.WriteAllText(Path.Combine(issues, "18-c.md"), "---\nid: 18\ntitle: Issue 18\nstate: building\nmilestone: 0.5\n---\n");
+        File.WriteAllText(milestone, "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 Issue 15\n2. #18 Issue 18\n3. #16 Issue 16\n");
+        MainWindow window = Ui.OpenFolder(folder, languageServer: false);
+        Ui.Click(window.FindControl<ToggleButton>("AgentModeButton")!);
+        BoardView board = window.AgentModePage!.Board;
+        Ui.WaitFor(() => board.CardsIn(BoardColumn.Building).Count == 1 && board.CardsIn(BoardColumn.Backlog).Count == 2, "the board to show the three issues");
+
+        // Card 16, the backlog's second, let go over the upper half of card 18, Building's first.
+        Control from = board.ListOf(BoardColumn.Backlog).ContainerFromIndex(1)!;
+        Control onto = board.ListOf(BoardColumn.Building).ContainerFromIndex(0)!;
+        Point start = from.TranslatePoint(new Point(from.Bounds.Width / 2, from.Bounds.Height / 2), window)!.Value;
+        Point end = onto.TranslatePoint(new Point(onto.Bounds.Width / 2, onto.Bounds.Height / 4), window)!.Value;
+        Ui.Drag(window, start, end);
+        Ui.WaitFor(() => board.CardsIn(BoardColumn.Building).Select(c => c.Id).SequenceEqual([16, 18]) && board.CardsIn(BoardColumn.Backlog) is [{ Id: 15 }],
+            "the dragged card to land in Building before the card it was let go over");
+        Assert.Contains("state: building", File.ReadAllText(Path.Combine(issues, "16-b.md")), StringComparison.Ordinal);
+        Assert.Contains("1. #15 Issue 15\n2. #16 Issue 16\n3. #18 Issue 18\n", File.ReadAllText(milestone), StringComparison.Ordinal);
+
+        List<string> asked = Agreed(window);
+        Ui.Click(window.FindControl<ToggleButton>("AgentModeButton")!);
+        Ui.Run(window, AppActions.FocusExplorer);
+        Ui.Run(window, EditorActions.Undo);
+        Ui.WaitFor(() => File.ReadAllText(Path.Combine(issues, "16-b.md")).Contains("state: backlog", StringComparison.Ordinal)
+            && File.ReadAllText(milestone).Contains("2. #18 Issue 18\n", StringComparison.Ordinal), "one Undo to take the drop back, its state and its place");
+        Assert.Equal<string>(["Undo"], asked);
+        window.Close();
+    }
     /// <summary>Agrees to every question the window asks from now on, as a person would, keeping their titles in order.</summary>
     private static List<string> Agreed(MainWindow window)
     {
