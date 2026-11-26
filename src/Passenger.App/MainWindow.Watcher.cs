@@ -125,6 +125,7 @@ public partial class MainWindow
         Godot.GodotScripts.FolderChanged(changes);
         session.DesignTimeBuilds.FolderChanged(changes);
         session.FilesChanged(changes);
+        AgentModeFolderChanged(changes);
         session.Debug.FilesChanged(changes.Paths);
         // What came or went is the index's to weigh against what the folder's read found (ProjectSession.ProjectsCameOrWent).
         string[] written = [.. changes.Written];

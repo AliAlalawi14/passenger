@@ -119,8 +119,9 @@
                             <TextBlock Name="BranchName" Text="Version control" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         </DockPanel>
                     </Button>
-                    <!-- Agent mode's page over the window, on while it shows; off again for the IDE (MainWindow.AgentMode.cs). -->
-                    <ToggleButton Name="AgentModeButton" />
+                    <!-- Agent mode's page over the window, on while it shows; off again for the IDE (MainWindow.AgentMode.cs). Its
+                         words kept whole, it goes where the toolbar has no room for it, View's Agent Mode still there. -->
+                    <ToggleButton Name="AgentModeButton" app:ShrinkingRow.KeepsWidth="True" app:ShrinkingRow.GoesWhole="True" />
                 </app:ShrinkingRow>
             </app:ToolbarRow>
             <app:ThemeBackdrop Place="Frame" />

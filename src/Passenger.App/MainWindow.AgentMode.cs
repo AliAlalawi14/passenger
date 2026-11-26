@@ -1,5 +1,9 @@
 using Avalonia.Controls;
+using Passenger.AgentMode.Issues;
 using Passenger.App.AgentMode;
+using Passenger.App.Workspace;
+using Passenger.Core;
+using Passenger.Text;
 using A = Passenger.App.AppActions;
 
 namespace Passenger.App;
@@ -61,8 +65,29 @@ public partial class MainWindow
         agentPage = page;
         AgentModeButton.IsChecked = true;
         page.Focus();
+        page.Board.OpenRequested += (_, place) =>
+        {
+            LeaveAgentMode();
+            NavigateTo(place.Path, new TextPosition(Math.Max(0, place.Line), 0));
+        };
         AgentModeFiles = new AgentModeFiles(Folder!, (title, paths, write) => ChangeFileAsync(title, paths, write));
+        AgentModeFiles.BoardRead += (_, board) => agentPage?.Show(board);
         IdeErrors.Observe(AgentModeFiles.ReadAsync());
+    }
+
+    /// <summary>The board read again while it shows, as the folder's watcher hears a change of its files (another editor's,
+    /// a git pull's, Passenger's own), or hears it lost changes, which may have been any.</summary>
+    private void AgentModeFolderChanged(FolderChanges changes)
+    {
+        if (agentPage is null || AgentModeFiles is not { } files || Folder is not { } folder)
+        {
+            return;
+        }
+        string kept = Path.Combine(folder, IssueFolder.Kept);
+        if (changes.Lost || changes.Paths.Any(path => PathNames.Within(path, kept)))
+        {
+            IdeErrors.Observe(files.ReadAsync());
+        }
     }
 
     /// <summary>Human mode again: the page gone, what it covered shown as it was, the editor given the keys it had.</summary>

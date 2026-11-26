@@ -13,11 +13,15 @@ public sealed class AgentModeFiles(string folder, Func<string, IReadOnlyCollecti
     /// <summary>The board as last read; empty until read.</summary>
     public IssueBoard Board { get; private set; } = IssueBoard.Of(folder, [], []);
 
+    /// <summary>The board read anew, on the window's thread.</summary>
+    public event EventHandler<IssueBoard>? BoardRead;
+
     /// <summary>Reads the folder's files again.</summary>
     public async Task<IssueBoard> ReadAsync()
     {
         UiThread.Check();
         Board = await BackgroundWork.Run(() => IssueBoard.Read(folder));
+        BoardRead?.Invoke(this, Board);
         return Board;
     }
 
