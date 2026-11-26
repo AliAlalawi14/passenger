@@ -1,3 +1,4 @@
+using Passenger.AgentMode.Gates;
 using Passenger.AgentMode.Issues;
 using Passenger.Core;
 using Passenger.Text;
@@ -29,7 +30,15 @@ public sealed class AgentModeFiles(string folder, Func<string, IReadOnlyCollecti
     /// the board again. Null once written, else why not, nothing of it left written.</summary>
     public async Task<string?> ChangeAsync(Func<IssueBoard, IssueChange> planned)
     {
-        IssueChange made = planned(await ReadAsync());
+        IssueChange made;
+        try
+        {
+            made = planned(await ReadAsync());
+        }
+        catch (MoveRefused refused)
+        {
+            return refused.Message;
+        }
         string? refused = await change(made.Title, [.. made.Writes.Select(w => w.Path)], () => Write(made.Writes));
         await ReadAsync();
         return refused;

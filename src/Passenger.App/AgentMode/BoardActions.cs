@@ -1,3 +1,4 @@
+using Passenger.AgentMode.Gates;
 using Passenger.AgentMode.Issues;
 
 namespace Passenger.App.AgentMode;
@@ -51,7 +52,7 @@ public sealed class BoardActions(AgentModeFiles files, BoardView board, Func<str
     }
 
     /// <summary>Move to: the card's issue in the column's own state.</summary>
-    public Task MoveToAsync(BoardCard card, BoardColumn to) => Changed(b => IssueChanges.NewState(b, card.Id, BoardColumns.StateOf(to)), card.Id);
+    public Task MoveToAsync(BoardCard card, BoardColumn to) => Changed(b => IssueChanges.NewState(b, card.Id, BoardColumns.StateOf(to), Mover.Person), card.Id);
 
     /// <summary>Move Up or Down: the card a place earlier or later in its column, so in its milestone's list.</summary>
     public async Task MoveAsync(BoardCard card, int step)
@@ -68,14 +69,14 @@ public sealed class BoardActions(AgentModeFiles files, BoardView board, Func<str
     /// list; nothing where it lands where it was.</summary>
     public async Task PlaceAsync(BoardCard card, BoardColumn to, int index)
     {
-        if (IssueChanges.Placed(files.Board, card.Id, to, index) is not null)
+        if (IssueChanges.Placed(files.Board, card.Id, to, index, Mover.Person) is not null)
         {
-            await Changed(b => IssueChanges.Placed(b, card.Id, to, index) ?? new IssueChange("Move", []), card.Id);
+            await Changed(b => IssueChanges.Placed(b, card.Id, to, index, Mover.Person) ?? new IssueChange("Move", []), card.Id);
         }
     }
 
     /// <summary>Drop: the card's issue dropped, out of the board, its file kept for Undo or the person to bring back.</summary>
-    public Task DropAsync(BoardCard card) => Changed(b => IssueChanges.NewState(b, card.Id, IssueState.Dropped));
+    public Task DropAsync(BoardCard card) => Changed(b => IssueChanges.NewState(b, card.Id, IssueState.Dropped, Mover.Person));
 
     /// <summary>Writes the change, said where refused; the card of <paramref name="chosen"/> chosen again where it went.</summary>
     private async Task<bool> Changed(Func<IssueBoard, IssueChange> planned, int? chosen = null)

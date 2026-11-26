@@ -1,3 +1,5 @@
+using Passenger.AgentMode.Gates;
+
 namespace Passenger.AgentMode.Issues;
 
 /// <summary>One file a change writes: its path, its whole new text, and whether it is made new (written only where no file
@@ -25,9 +27,12 @@ public static class IssueChanges
         return new IssueChange($"New Issue #{issue.Id}", writes);
     }
 
-    public static IssueChange NewState(IssueBoard board, int id, IssueState state)
+    /// <summary>The issue in another state, as <paramref name="by"/> asks: refused (<see cref="MoveRefused"/>) where the
+    /// Gatekeeper says that mover may not make that move.</summary>
+    public static IssueChange NewState(IssueBoard board, int id, IssueState state, Mover by)
     {
         Placed<Issue> issue = Sure(board, id);
+        Gate(issue, state, by);
         return new IssueChange($"Move #{id} to {IssueStates.WordOf(state)}", [Rewritten(issue, IssueFile.WithState(issue.Value, state))]);
     }
 
@@ -80,17 +85,21 @@ public static class IssueChanges
         }
         (BoardColumn column, IReadOnlyList<BoardCard> cards) = BoardColumns.Cards(board, milestone).First(c => c.Value.Any(card => card.Id == id));
         int at = cards.ToList().FindIndex(c => c.Id == id);
-        return at + step < 0 || at + step >= cards.Count ? null : Placed(board, id, column, at + step);
+        return at + step < 0 || at + step >= cards.Count ? null : Placed(board, id, column, at + step, Mover.Person);
     }
 
     /// <summary>The issue's card placed in <paramref name="column"/> before the card at <paramref name="index"/> among that
     /// column's others (after them all past their end): the issue taking the column's own state where it is another
     /// column's, and its place in its milestone's list, those the list leaves out taken in after it by number. Null where
     /// that changes nothing, a drop where it was, or a drop in its own column of an issue of no milestone.</summary>
-    public static IssueChange? Placed(IssueBoard board, int id, BoardColumn column, int index)
+    public static IssueChange? Placed(IssueBoard board, int id, BoardColumn column, int index, Mover by)
     {
         Placed<Issue> issue = Sure(board, id);
         bool across = BoardColumns.Of(issue.Value.State) != column;
+        if (across)
+        {
+            Gate(issue, BoardColumns.StateOf(column), by);
+        }
         if (!across && BoardColumns.Cards(board, issue.Value.Milestone)[column].ToList().FindIndex(c => c.Id == id) is var stands
             && Math.Clamp(index, 0, BoardColumns.Cards(board, issue.Value.Milestone)[column].Count - 1) == stands)
         {
@@ -114,6 +123,15 @@ public static class IssueChanges
         }
         return writes.Count == 0 ? null
             : new IssueChange(across ? $"Move #{id} to {IssueStates.WordOf(BoardColumns.StateOf(column))}" : $"Move #{id}", writes);
+    }
+
+    /// <summary>Throws where the Gatekeeper refuses <paramref name="by"/> the issue's move to <paramref name="to"/>.</summary>
+    private static void Gate(Placed<Issue> issue, IssueState to, Mover by)
+    {
+        if (Gatekeeper.WhyNot(issue.Value.State, to, by) is { } why)
+        {
+            throw new MoveRefused(why);
+        }
     }
 
     private static Placed<Issue> Sure(IssueBoard board, int id) =>

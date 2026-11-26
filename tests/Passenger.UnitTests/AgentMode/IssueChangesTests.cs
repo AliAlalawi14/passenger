@@ -1,3 +1,4 @@
+using Passenger.AgentMode.Gates;
 using Passenger.AgentMode.Issues;
 
 namespace Passenger.UnitTests.AgentMode;
@@ -46,7 +47,7 @@ public class IssueChangesTests
         }),
         ("a new state writes the issue's state alone", () =>
         {
-            IssueChange change = IssueChanges.NewState(Board(), 15, IssueState.Planning);
+            IssueChange change = IssueChanges.NewState(Board(), 15, IssueState.Planning, Mover.Person);
             Assert.Equal(Fifteen, change.Writes.Single().Path);
             Assert.Equal(Board().IssueOf(15)!.Value.Text.Replace("state: backlog", "state: planning", StringComparison.Ordinal), change.Writes.Single().Text);
         }),
@@ -92,14 +93,14 @@ public class IssueChangesTests
                     (Broken, "---\nid: 21\ntitle: C\nstate: building\nmilestone: 0.5\n---\n"),
                 ],
                 [(Five, "---\ntitle: 0.5\n---\n\n## Issues\n1. #15 A\n2. #21 C\n3. #16 B\n")]);
-            IssueChange across = IssueChanges.Placed(board, 16, BoardColumn.Building, 0)!;
+            IssueChange across = IssueChanges.Placed(board, 16, BoardColumn.Building, 0, Mover.Person)!;
             Assert.Equal<string>([Sixteen, Five], across.Writes.Select(w => w.Path));
             Assert.Equal(IssueState.Building, IssueFile.Read(across.Writes[0].Text).Sure.State);
             Assert.Equal<int>([15, 16, 21], MilestoneFile.Read(across.Writes[1].Text).Sure.Order);
-            Assert.Null(IssueChanges.Placed(board, 15, BoardColumn.Backlog, 0));
+            Assert.Null(IssueChanges.Placed(board, 15, BoardColumn.Backlog, 0, Mover.Person));
             IssueBoard none = IssueBoard.Of(Folder, [(Fifteen, "---\nid: 15\ntitle: A\nstate: backlog\nmilestone:\n---\n"), (Sixteen, "---\nid: 16\ntitle: B\nstate: backlog\nmilestone:\n---\n")], []);
-            Assert.Null(IssueChanges.Placed(none, 16, BoardColumn.Backlog, 0));
-            Assert.Equal<string>([Fifteen], IssueChanges.Placed(none, 15, BoardColumn.Landed, 0)!.Writes.Select(w => w.Path));
+            Assert.Null(IssueChanges.Placed(none, 16, BoardColumn.Backlog, 0, Mover.Person));
+            Assert.Equal<string>([Fifteen], IssueChanges.Placed(none, 15, BoardColumn.Landed, 0, Mover.Person)!.Writes.Select(w => w.Path));
         }),
         ("a new order writes the milestone's list alone, its goal kept", () =>
         {
